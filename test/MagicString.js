@@ -1065,6 +1065,102 @@ describe( 'MagicString', () => {
 		});
 	});
 
+	describe( 'transformSlice', () => {
+		it( 'should return the generated content between the specified transformed characters', () => {
+			const s = new MagicString( 'abcdefghijkl' );
+
+			assert.equal( s.transformSlice( 3, 9 ), 'defghi' );
+			s.overwrite( 4, 8, 'XX' );
+			assert.equal( s.transformSlice( 3, 9 ), 'dXXijk' );
+			s.overwrite( 2, 10, 'ZZ' );
+			assert.equal( s.transformSlice( 1, 11 ), 'bZZkl' );
+			assert.equal( s.transformSlice( 2, 10 ), 'ZZkl' );
+			assert.equal( s.transformSlice( 5, 6 ), 'l' );
+		});
+
+		it( 'defaults `end` to the original string length', () => {
+			const s = new MagicString( 'abcdefghijkl' );
+			assert.equal( s.transformSlice( 3 ), 'defghijkl' );
+		});
+
+		it( 'allows negative numbers as arguments', () => {
+			const s = new MagicString( 'abcdefghijkl' );
+			assert.equal( s.transformSlice( -3 ), 'jkl' );
+		});
+
+		it( 'includes inserted characters, respecting insertion direction', () => {
+			const s = new MagicString( 'abefij' );
+
+			s.prependRight( 2, 'cd' );
+			s.appendLeft( 4, 'gh' );
+
+			assert.equal( s.transformSlice(), 'abcdefghij' );
+			assert.equal( s.transformSlice( 1, 5 ), 'bcde' );
+			assert.equal( s.transformSlice( 2, 4 ), 'cd' );
+			assert.equal( s.transformSlice( 3, 4 ), 'd' );
+			assert.equal( s.transformSlice( 0, 2 ), 'ab' );
+			assert.equal( s.transformSlice( 0, 3 ), 'abc' );
+			assert.equal( s.transformSlice( 4, 6 ), 'ef' );
+			assert.equal( s.transformSlice( 3, 6 ), 'def' );
+		});
+
+		it( 'supports characters moved outward', () => {
+			const s = new MagicString( 'abcdEFghIJklmn' );
+
+			s.move( 4, 6, 2 );
+			s.move( 8, 10, 12 );
+			assert.equal( s.toString(), 'abEFcdghklIJmn' );
+
+			assert.equal( s.transformSlice( 1, 13 ), 'bEFcdghklIJm' );
+			assert.equal( s.transformSlice( 2, 12 ), 'EFcdghklIJ' );
+			assert.equal( s.transformSlice( 3, 11 ), 'FcdghklI' );
+			assert.equal( s.transformSlice( 4, 10 ), 'cdghkl' );
+			assert.equal( s.transformSlice( 5, 9 ), 'dghk' );
+			assert.equal( s.transformSlice( 6, 8 ), 'gh' );
+		});
+
+		it( 'supports characters moved inward', () => {
+			const s = new MagicString( 'abCDefghijKLmn' );
+
+			s.move( 2, 4, 6 );
+			s.move( 10, 12, 8 );
+			assert.equal( s.toString(), 'abefCDghKLijmn' );
+
+			assert.equal( s.transformSlice( 1, 13 ), 'befCDghKLijm' );
+			assert.equal( s.transformSlice( 2, 12 ), 'efCDghKLij' );
+			assert.equal( s.transformSlice( 3, 11 ), 'fCDghKLi' );
+			assert.equal( s.transformSlice( 4, 10 ), 'CDghKL' );
+			assert.equal( s.transformSlice( 5, 9 ), 'DghK' );
+			assert.equal( s.transformSlice( 6, 8 ), 'gh' );
+		});
+
+		it( 'supports characters moved opposing', () => {
+			const s = new MagicString( 'abCDefghIJkl' );
+
+			s.move( 2, 4, 8 );
+			s.move( 8, 10, 4 );
+			assert.equal( s.toString(), 'abIJefghCDkl' );
+
+			assert.equal( s.transformSlice( 1, 11 ), 'bIJefghCDk' );
+			assert.equal( s.transformSlice( 2, 10 ), 'IJefghCD' );
+			assert.equal( s.transformSlice( 3, 9 ), 'JefghC' );
+			assert.equal( s.transformSlice( -3, 3 ), 'Dkl' );
+			assert.equal( s.transformSlice( 4, 8 ), 'efgh' );
+			assert.equal( s.transformSlice( 0, 3 ), 'abI' );
+			assert.equal( s.transformSlice( 3 ), 'JefghCDkl' );
+			assert.equal( s.transformSlice( 0, 9 ), 'abIJefghC' );
+			assert.equal( s.transformSlice( -3 ), 'Dkl' );
+		});
+
+		it( 'does not error if slice is after removed characters', () => {
+			const s = new MagicString( 'abcdef' );
+
+			s.remove( 0, 2 );
+
+			assert.equal( s.transformSlice( 2, 4 ), 'ef' );
+		});
+	});
+
 	describe( 'snip', () => {
 		it( 'should return a clone with content outside `start` and `end` removed', () => {
 			const s = new MagicString( 'abcdefghijkl', {
@@ -1171,6 +1267,25 @@ describe( 'MagicString', () => {
 
 			s.trimLines();
 			assert.equal( s.toString(), '   abcdefghijkl   ' );
+		});
+	});
+
+	describe( 'isEmpty', () => {
+		it( 'should support isEmpty', () => {
+			const s = new MagicString( ' abcde   fghijkl ' );
+
+			assert.equal( s.isEmpty(), false );
+
+			s.prepend( '  ' );
+			s.append( '  ' );
+			s.remove( 1, 6 );
+			s.remove( 9, 15 );
+
+			assert.equal( s.isEmpty(), false );
+
+			s.remove( 15, 16 );
+
+			assert.equal( s.isEmpty(), true );
 		});
 	});
 });

@@ -459,6 +459,101 @@ export default class MagicString {
 		return this;
 	}
 
+	transformSlice( start = 0, end ) {
+		let chunk;
+		let str = '';
+		if (start < 0) {
+			let i = 0;
+			chunk = this.lastChunk;
+			do {
+				i -= chunk.outro.length;
+				if (i <= start) {
+					str = chunk.outro.slice(start - i) + chunk.content + chunk.outro;
+					chunk = chunk.next;
+					break;
+				}
+				i -= chunk.content.length;
+				if (i <= start) {
+					str = chunk.content.slice(start - i) + chunk.outro;
+					chunk = chunk.next;
+					break;
+				}
+				i -= chunk.intro.length;
+				if (i <= start) {
+					str = chunk.intro.slice(start - i);
+					chunk = chunk.next;
+					break;
+				}
+			} while (chunk = chunk.previous);
+		}
+		else {
+			let i = 0;
+			chunk = this.firstChunk;
+			do {
+				i += chunk.intro.length;
+				if (i > start) {
+					str = chunk.intro.slice(start - i) + chunk.content + chunk.outro;
+					chunk = chunk.next;
+					break;
+				}
+				i += chunk.content.length;
+				if (i > start) {
+					str = chunk.content.slice(start - i) + chunk.outro;
+					chunk = chunk.next;
+					break;
+				}
+				i += chunk.outro.length;
+				if (i > start) {
+					str = chunk.outro.slice(start - i);
+					chunk = chunk.next;
+					break;
+				}
+			} while (chunk = chunk.next);
+		}
+
+		let left = -1;
+		if (typeof end === 'number') {
+			if (end < 0)
+				throw new Error('Negative end index not currently supported.');
+			if (end <= start)
+				return str;
+			const len = end - start;
+			if (str.length > len)
+				return str.slice(0, len);
+			left = len - str.length;
+		}
+
+		while (chunk) {
+			if (left !== -1) {
+				if (left <= chunk.intro.length) {
+					str += chunk.intro.slice(0, left);
+					return str;
+				}
+				left -= chunk.intro.length;
+			}
+			str += chunk.intro;
+			if (left !== -1) {
+				if (left <= chunk.content.length) {
+					str += chunk.content.slice(0, left);
+					return str;
+				}
+				left -= chunk.content.length;
+			}
+			str += chunk.content;
+			if (left !== -1) {
+				if (left <= chunk.outro.length) {
+					str += chunk.outro.slice(0, left);
+					return str;
+				}
+				left -= chunk.outro.length;
+			}
+			str += chunk.outro;
+			chunk = chunk.next;
+		}
+
+		return str;
+	}
+
 	slice(start = 0, end = this.original.length) {
 		while (start < 0) start += this.original.length;
 		while (end < 0) end += this.original.length;
@@ -568,6 +663,17 @@ export default class MagicString {
 		return str + this.outro;
 	}
 
+	isEmpty() {
+		let chunk = this.firstChunk;
+		do {
+			if (chunk.intro.length && chunk.intro.trim() ||
+					chunk.content.length && chunk.content.trim() ||
+					chunk.outro.length && chunk.outro.trim())
+				return false;
+		} while (chunk = chunk.next);
+		return true;
+	}
+
 	trimLines() {
 		return this.trim('[\\r\\n]');
 	}
@@ -576,11 +682,11 @@ export default class MagicString {
 		return this.trimStart(charType).trimEnd(charType);
 	}
 
-	trimEnd(charType) {
+	trimEndAborted(charType) {
 		const rx = new RegExp((charType || '\\s') + '+$');
 
 		this.outro = this.outro.replace(rx, '');
-		if (this.outro.length) return this;
+		if (this.outro.length) return true;
 
 		let chunk = this.lastChunk;
 
@@ -599,18 +705,22 @@ export default class MagicString {
 				this.byEnd[chunk.next.end] = chunk.next;
 			}
 
-			if (aborted) return this;
+			if (aborted) return true;
 			chunk = chunk.previous;
 		} while (chunk);
 
-		return this;
+		return false;
 	}
 
-	trimStart(charType) {
+	trimEnd(charType) {
+		this.trimEndAborted(charType);
+		return this;
+	}
+	trimStartAborted(charType) {
 		const rx = new RegExp('^' + (charType || '\\s') + '+');
 
 		this.intro = this.intro.replace(rx, '');
-		if (this.intro.length) return this;
+		if (this.intro.length) return true;
 
 		let chunk = this.firstChunk;
 
@@ -627,10 +737,15 @@ export default class MagicString {
 				this.byEnd[chunk.next.end] = chunk.next;
 			}
 
-			if (aborted) return this;
+			if (aborted) return true;
 			chunk = chunk.next;
 		} while (chunk);
 
+		return false;
+	}
+
+	trimStart(charType) {
+		this.trimStartAborted(charType);
 		return this;
 	}
 }
